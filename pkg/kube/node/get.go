@@ -84,7 +84,14 @@ func Get(
 		if hasPods {
 			for _, p := range podsOnNode {
 				cpuReqFloor += p.ResourceRequests.CPU.Floor
-				cpuReqCeil += p.ResourceRequests.CPU.Ceiling
+				// If there is any Pod on the Node that has no limits set for
+				// this resource, it can potentially consume all of the
+				// resource on the Node. So, we treat ceiling == -1 specially.
+				if cpuReqCeil == -1 || p.ResourceRequests.CPU.Ceiling == -1 {
+					cpuReqCeil = -1
+				} else {
+					cpuReqCeil += p.ResourceRequests.CPU.Ceiling
+				}
 			}
 		}
 		memCap, err := resourceCapacityFromRaw(obj.Object, "memory")
@@ -101,7 +108,14 @@ func Get(
 		if hasPods {
 			for _, p := range podsOnNode {
 				memReqFloor += p.ResourceRequests.Memory.Floor
-				memReqCeil += p.ResourceRequests.Memory.Ceiling
+				// If there is any Pod on the Node that has no limits set for
+				// this resource, it can potentially consume all of the
+				// resource on the Node. So, we treat ceiling == -1 specially.
+				if memReqCeil == -1 || p.ResourceRequests.Memory.Ceiling == -1 {
+					memReqCeil = -1
+				} else {
+					memReqCeil += p.ResourceRequests.Memory.Ceiling
+				}
 			}
 		}
 		podCap, err := resourceCapacityFromRaw(obj.Object, "pods")

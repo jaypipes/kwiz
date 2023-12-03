@@ -13,6 +13,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	kwcontext "github.com/jaypipes/kwiz/pkg/context"
 	"github.com/jaypipes/kwiz/pkg/kube"
@@ -20,6 +21,8 @@ import (
 	knode "github.com/jaypipes/kwiz/pkg/kube/node"
 	"github.com/jaypipes/kwiz/pkg/unit"
 )
+
+var nodeGetOpts = knode.NodeGetOptions{}
 
 // nodeCmd represents the node command
 var nodeCmd = &cobra.Command{
@@ -29,6 +32,7 @@ var nodeCmd = &cobra.Command{
 }
 
 func init() {
+	cmdutil.AddLabelSelectorFlagVar(nodeCmd, &nodeGetOpts.LabelSelector)
 	rootCmd.AddCommand(nodeCmd)
 }
 
@@ -49,7 +53,7 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 	ctx, cancel = context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	nodes, err := knode.Get(ctx, conn)
+	nodes, err := knode.Get(ctx, conn, &nodeGetOpts)
 	if err != nil {
 		return err
 	}

@@ -24,18 +24,28 @@ var (
 	}
 )
 
+type NodeGetOptions struct {
+	// LabelSelector (label query) to filter on, supports '=', '==', and
+	// '!='.(e.g. -l key1=value1,key2=value2). Matching objects must satisfy
+	// all of the specified label constraints.
+	LabelSelector string
+}
+
 // Get returns a slice of `Node` objects contained in a Kubernetes cluster.
 func Get(
 	ctx context.Context,
 	c *kconnect.Connection,
+	opts *NodeGetOptions,
 ) ([]*types.Node, error) {
 	gvrNode, err := c.GVR(nodeGVK)
 	if err != nil {
 		return nil, err
 	}
-	opts := metav1.ListOptions{}
+	lopts := metav1.ListOptions{
+		LabelSelector: opts.LabelSelector,
+	}
 	list, err := c.Client().Resource(gvrNode).List(
-		ctx, opts,
+		ctx, lopts,
 	)
 	if err != nil {
 		return nil, err

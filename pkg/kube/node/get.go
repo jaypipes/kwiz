@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	kconnect "github.com/jaypipes/kwiz/pkg/kube/connect"
+	kpod "github.com/jaypipes/kwiz/pkg/kube/pod"
 	"github.com/jaypipes/kwiz/pkg/types"
 	"github.com/jaypipes/kwiz/pkg/unit"
 )
@@ -40,7 +41,25 @@ func Get(
 		return nil, err
 	}
 	nodes := make([]*types.Node, len(list.Items))
+	// Grab the entire set of Pods in the cluster and create a map, keyed by
+	// node name, of Pod structs.
+	pods, err := kpod.Get(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	nodePods := make(map[string][]*types.Pod, len(nodes))
+	for _, p := range pods {
+		np, ok := nodePods[p.Node]
+		if !ok {
+			np = []*types.Pod{}
+		}
+		np = append(np, p)
+		nodePods[p.Node] = np
+	}
+
 	for x, obj := range list.Items {
+		name, _, _ := unstructured.NestedString(obj.Object, "metadata", "name")
+		podsOnNode, hasPods := nodePods[name]
 		cpuCap, err := resourceCapacityFromRaw(obj.Object, "cpu")
 		if err != nil {
 			return nil, err
@@ -50,6 +69,14 @@ func Get(
 			return nil, err
 		}
 		cpuReserved := cpuCap - cpuAlloc
+		var cpuReqFloor float64 = 0
+		var cpuReqCeil float64 = 0
+		if hasPods {
+			for _, p := range podsOnNode {
+				cpuReqFloor += p.ResourceRequests.CPU.Floor
+				cpuReqCeil += p.ResourceRequests.CPU.Ceiling
+			}
+		}
 		memCap, err := resourceCapacityFromRaw(obj.Object, "memory")
 		if err != nil {
 			return nil, err
@@ -59,6 +86,14 @@ func Get(
 			return nil, err
 		}
 		memReserved := memCap - memAlloc
+		var memReqFloor float64 = 0
+		var memReqCeil float64 = 0
+		if hasPods {
+			for _, p := range podsOnNode {
+				memReqFloor += p.ResourceRequests.Memory.Floor
+				memReqCeil += p.ResourceRequests.Memory.Ceiling
+			}
+		}
 		podCap, err := resourceCapacityFromRaw(obj.Object, "pods")
 		if err != nil {
 			return nil, err
@@ -68,24 +103,34 @@ func Get(
 			return nil, err
 		}
 		podReserved := podCap - podAlloc
+		var podCount float64 = 0
+		if hasPods {
+			podCount = float64(len(podsOnNode))
+		}
 		nodeRes := types.Resources{
 			CPU: types.ResourceAmounts{
-				Capacity:    cpuCap,
-				Allocatable: cpuAlloc,
-				Reserved:    cpuReserved,
+				Capacity:         cpuCap,
+				Allocatable:      cpuAlloc,
+				Reserved:         cpuReserved,
+				RequestedFloor:   cpuReqFloor,
+				RequestedCeiling: cpuReqCeil,
 			},
 			Memory: types.ResourceAmounts{
-				Capacity:    memCap,
-				Allocatable: memAlloc,
-				Reserved:    memReserved,
+				Capacity:         memCap,
+				Allocatable:      memAlloc,
+				Reserved:         memReserved,
+				RequestedFloor:   memReqFloor,
+				RequestedCeiling: memReqCeil,
 			},
 			Pods: types.ResourceAmounts{
-				Capacity:    podCap,
-				Allocatable: podAlloc,
-				Reserved:    podReserved,
+				Capacity:         podCap,
+				Allocatable:      podAlloc,
+				Reserved:         podReserved,
+				RequestedFloor:   podCount,
+				RequestedCeiling: podCount,
+				Used:             podCount,
 			},
 		}
-		name, _, _ := unstructured.NestedString(obj.Object, "metadata", "name")
 		node := &types.Node{
 			Cluster:   "default",
 			Name:      name,

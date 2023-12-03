@@ -34,7 +34,11 @@ const (
 // BytesToSizeString takes a float64 number of bytes and returns a short size
 // string, e.g. "102b", "5Ki", or "98Ti".
 func BytesToSizeString(b float64) string {
-	for _, unit := range []string{"B", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"} {
+	if math.Abs(b) < Ki {
+		return fmt.Sprintf("%dB", int64(b))
+	}
+	b /= Ki
+	for _, unit := range []string{"Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"} {
 		if math.Abs(b) < Ki {
 			return fmt.Sprintf("%3.1f%s", b, unit)
 		}
@@ -60,7 +64,7 @@ func SizeStringToBytes(s string) float64 {
 		}
 		cur++
 	}
-	baseInt, _ := strconv.Atoi(s[0 : cur-1])
+	baseInt, err := strconv.Atoi(s[0:cur])
 	base := float64(baseInt)
 	suffix := s[cur:len(s)]
 	switch suffix {
@@ -96,7 +100,7 @@ func SizeStringToBytes(s string) float64 {
 		return base * Yi
 	case "Yb":
 		return base * Yb
-	case "b":
+	case "B":
 		return base
 	}
 	return base

@@ -58,7 +58,7 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 	case outputFormatHuman:
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetAutoMergeCells(true)
-		table.SetHeader([]string{"NODE", "RESOURCE", "Cap", "Res", "Req", "Used"})
+		table.SetHeader([]string{"NODE", "RESOURCE", "CAPACITY", "RESERVED", "REQUESTED", "USED"})
 		table.SetColumnAlignment([]int{
 			tablewriter.ALIGN_LEFT,
 			tablewriter.ALIGN_LEFT,
@@ -75,9 +75,9 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 			data := []string{
 				node.Name,
 				"CPU",
-				fmt.Sprintf("%.0f", cpu.Allocatable),
-				fmt.Sprintf("%.0f", cpu.Reserved),
-				cpuUsed,
+				fmt.Sprintf("%.2f", cpu.Allocatable),
+				fmt.Sprintf("%.2f", cpu.Reserved),
+				fmt.Sprintf("%.2f", cpu.RequestedFloor),
 				cpuUsed,
 			}
 			fieldColors := fieldColorsByPct(cpuUsedPct)
@@ -96,7 +96,7 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 				"Memory",
 				unit.BytesToSizeString(mem.Allocatable),
 				unit.BytesToSizeString(mem.Reserved),
-				memUsed,
+				unit.BytesToSizeString(mem.RequestedFloor),
 				memUsed,
 			}
 			fieldColors = fieldColorsByPct(cpuUsedPct)
@@ -111,7 +111,7 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 				"Pods",
 				fmt.Sprintf("%.0f", pod.Allocatable),
 				fmt.Sprintf("%.0f", pod.Reserved),
-				podUsed,
+				fmt.Sprintf("%.0f", pod.RequestedFloor),
 				podUsed,
 			}
 			fieldColors = fieldColorsByPct(podUsedPct)

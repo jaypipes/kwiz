@@ -18,6 +18,7 @@ import (
 	"github.com/jaypipes/kwiz/pkg/kube"
 	kconnect "github.com/jaypipes/kwiz/pkg/kube/connect"
 	kpod "github.com/jaypipes/kwiz/pkg/kube/pod"
+	"github.com/jaypipes/kwiz/pkg/unit"
 )
 
 // podCmd represents the node command
@@ -64,7 +65,7 @@ func showPodResourceSummary(cmd *cobra.Command, args []string) error {
 	case outputFormatHuman:
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetAutoMergeCellsByColumnIndex([]int{0, 1})
-		table.SetHeader([]string{"POD", "NAMESPACE", "RESOURCE", "Req", "Lim"})
+		table.SetHeader([]string{"NAMESPACE", "POD", "RESOURCE", "Req", "Lim"})
 		table.SetColumnAlignment([]int{
 			tablewriter.ALIGN_LEFT,
 			tablewriter.ALIGN_LEFT,
@@ -73,19 +74,20 @@ func showPodResourceSummary(cmd *cobra.Command, args []string) error {
 			tablewriter.ALIGN_RIGHT,
 			tablewriter.ALIGN_RIGHT,
 		})
+		table.SetRowLine(true)
 		for _, pod := range pods {
 			cpu := pod.ResourceRequests.CPU
-			cpuFloor := fmt.Sprintf("%.0f", cpu.Floor)
-			if cpu.Floor == float64(0) {
+			cpuFloor := fmt.Sprintf("%.2f", cpu.Floor)
+			if cpu.Floor == float64(-1) {
 				cpuFloor = "-"
 			}
-			cpuCeiling := fmt.Sprintf("%.0f", cpu.Ceiling)
+			cpuCeiling := fmt.Sprintf("%.2f", cpu.Ceiling)
 			if cpu.Ceiling == float64(-1) {
 				cpuCeiling = "-"
 			}
 			data := []string{
-				pod.Name,
 				pod.Namespace,
+				pod.Name,
 				"CPU",
 				cpuFloor,
 				cpuCeiling,
@@ -93,17 +95,21 @@ func showPodResourceSummary(cmd *cobra.Command, args []string) error {
 			table.Rich(data, colors)
 
 			mem := pod.ResourceRequests.Memory
-			memFloor := fmt.Sprintf("%.0f", mem.Floor)
-			if mem.Floor == float64(0) {
+			var memFloor string
+			if mem.Floor == float64(-1) {
 				memFloor = "-"
+			} else {
+				memFloor = unit.BytesToSizeString(mem.Floor)
 			}
-			memCeiling := fmt.Sprintf("%.0f", mem.Ceiling)
+			var memCeiling string
 			if mem.Ceiling == float64(-1) {
 				memCeiling = "-"
+			} else {
+				memCeiling = unit.BytesToSizeString(mem.Ceiling)
 			}
 			data = []string{
-				pod.Name,
 				pod.Namespace,
+				pod.Name,
 				"Memory",
 				memFloor,
 				memCeiling,

@@ -23,6 +23,6 @@ WORKDIR /
 
 COPY --from=build-stage /kwiz /kwiz
 
-USER nonroot:nonroot
+#USER nonroot:nonroot
 
 ENTRYPOINT ["/kwiz"]

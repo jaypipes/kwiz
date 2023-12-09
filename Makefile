@@ -11,41 +11,44 @@ else
 endif
 
 build:
-	@GOARCH=amd64 GOOS=linux go build -o bin/${BINARY_NAME}-linux cmd/kwiz/main.go
-	@GOARCH=amd64 GOOS=darwin go build -o bin/${BINARY_NAME}-darwin cmd/kwiz/main.go
-	@GOARCH=amd64 GOOS=windows go build -o bin/${BINARY_NAME}-windows cmd/kwiz/main.go
+	GOARCH=amd64 GOOS=linux go build -o bin/${BINARY_NAME}-linux cmd/kwiz/main.go
+	GOARCH=amd64 GOOS=darwin go build -o bin/${BINARY_NAME}-darwin cmd/kwiz/main.go
+	GOARCH=amd64 GOOS=windows go build -o bin/${BINARY_NAME}-windows cmd/kwiz/main.go
 
 run: build
 ifeq ($(detected_OS),Linux)
-	@./bin/${BINARY_NAME}-linux
+	./bin/${BINARY_NAME}-linux
 endif
 ifeq ($(detected_OS),Darwin)
-	@./bin/${BINARY_NAME}-darwin
+	./bin/${BINARY_NAME}-darwin
 endif
 ifeq ($(detected_OS),Windows)
-	@./bin/${BINARY_NAME}-windows
+	./bin/${BINARY_NAME}-windows
 endif
 
 build-image:
 	docker build -t ${BINARY_NAME}:${VERSION} -f Dockerfile .
 
+run-image:
+	docker run --network host -it -v ${HOME}/.kube/config:/kconfig -e KUBECONFIG=/kconfig ${BINARY_NAME}:${VERSION}
+
 clean:
-	@go clean
-	@rm bin/${BINARY_NAME}-darwin
-	@rm bin/${BINARY_NAME}-linux
-	@rm bin/${BINARY_NAME}-windows
+	go clean
+	rm bin/${BINARY_NAME}-darwin
+	rm bin/${BINARY_NAME}-linux
+	rm bin/${BINARY_NAME}-windows
 
 test:
-	@go test ./...
+	go test ./...
 
 test_coverage:
-	@go test ./... -coverprofile=coverage.out
+	go test ./... -coverprofile=coverage.out
 
 dep:
-	@go mod download
+	go mod download
 
 vet:
-	@go vet
+	go vet
 
 lint:
-	@golangci-lint run --enable-all
+	golangci-lint run --enable-all

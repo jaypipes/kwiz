@@ -1,4 +1,5 @@
 BINARY_NAME=kwiz
+VERSION ?= $(shell git describe --tags --always --dirty)
 
 ifeq '$(findstring ;,$(PATH))' ';'
     detected_OS := Windows
@@ -24,6 +25,9 @@ endif
 ifeq ($(detected_OS),Windows)
 	@./bin/${BINARY_NAME}-windows
 endif
+
+build-image:
+	docker build -t ${BINARY_NAME}:${VERSION} -f Dockerfile .
 
 clean:
 	@go clean

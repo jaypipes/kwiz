@@ -10,20 +10,52 @@ else
     detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
 endif
 
-build:
+build-linux:
 	GOARCH=amd64 GOOS=linux go build -o bin/${BINARY_NAME}-linux cmd/kwiz/main.go
+
+build-darwin:
 	GOARCH=amd64 GOOS=darwin go build -o bin/${BINARY_NAME}-darwin cmd/kwiz/main.go
+
+build-windows:
 	GOARCH=amd64 GOOS=windows go build -o bin/${BINARY_NAME}-windows cmd/kwiz/main.go
 
-run: build
+build-all: build-linux build-darwin build-windows
+
 ifeq ($(detected_OS),Linux)
-	./bin/${BINARY_NAME}-linux
+build: build-linux
 endif
 ifeq ($(detected_OS),Darwin)
-	./bin/${BINARY_NAME}-darwin
+build: build-darwin
 endif
 ifeq ($(detected_OS),Windows)
-	./bin/${BINARY_NAME}-windows
+build: build-windows
+endif
+
+# If the first argument contains "run"...
+ifeq (run,$(findstring run, $(firstword $(MAKECMDGOALS))))
+  # use the rest as arguments for "run"
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  # ...and turn them into do-nothing targets
+  $(eval $(RUN_ARGS):;@:)
+endif
+
+run-linux:
+	./bin/${BINARY_NAME}-linux $(RUN_ARGS)
+
+run-darwin:
+	./bin/${BINARY_NAME}-darwin $(RUN_ARGS)
+
+run-windows:
+	./bin/${BINARY_NAME}-windows $(RUN_ARGS)
+
+ifeq ($(detected_OS),Linux)
+run: build run-linux
+endif
+ifeq ($(detected_OS),Darwin)
+run: build run-darwin
+endif
+ifeq ($(detected_OS),Windows)
+run: build run-windows
 endif
 
 build-image:

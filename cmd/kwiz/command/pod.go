@@ -23,9 +23,10 @@ import (
 
 // podCmd represents the node command
 var podCmd = &cobra.Command{
-	Use:   "pod",
-	Short: "Show pod resource summary",
-	RunE:  showPodResourceSummary,
+	Use:     "pod",
+	Short:   "Show pod resource summary",
+	Aliases: []string{"pods"},
+	RunE:    showPodResourceSummary,
 }
 
 func init() {

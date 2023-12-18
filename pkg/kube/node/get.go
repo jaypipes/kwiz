@@ -8,6 +8,7 @@ import (
 	"context"
 	"strconv"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -68,7 +69,18 @@ func Get(
 	}
 
 	for x, obj := range list.Items {
+		var nodeIP string
 		name, _, _ := unstructured.NestedString(obj.Object, "metadata", "name")
+		addresses, _, _ := unstructured.NestedSlice(obj.Object, "status", "addresses")
+		if len(addresses) > 0 {
+			for _, address := range addresses {
+				addrMap := address.(map[string]interface{})
+				addrType, _, _ := unstructured.NestedString(addrMap, "type")
+				if addrType == string(corev1.NodeInternalIP) {
+					nodeIP, _, _ = unstructured.NestedString(addrMap, "address")
+				}
+			}
+		}
 		podsOnNode, hasPods := nodePods[name]
 		cpuCap, err := resourceCapacityFromRaw(obj.Object, "cpu")
 		if err != nil {
@@ -158,6 +170,7 @@ func Get(
 		node := &types.Node{
 			Cluster:   "default",
 			Name:      name,
+			Address:   nodeIP,
 			Resources: nodeRes,
 			NUMACells: []types.NUMACell{},
 		}

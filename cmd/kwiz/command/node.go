@@ -23,16 +23,25 @@ import (
 	"github.com/jaypipes/kwiz/pkg/unit"
 )
 
-var nodeGetOpts = knode.NodeGetOptions{}
+const (
+	showActualDesc = "If true, instructs kwiz to go gather actual resource usage information from nodes"
+)
+
+var (
+	nodeGetOpts      = knode.NodeGetOptions{}
+	showActual  bool = false
+)
 
 // nodeCmd represents the node command
 var nodeCmd = &cobra.Command{
-	Use:   "node",
-	Short: "Show node resource summary",
-	RunE:  showNodeResourceSummary,
+	Use:     "node",
+	Short:   "Show node resource summary",
+	Aliases: []string{"nodes"},
+	RunE:    showNodeResourceSummary,
 }
 
 func init() {
+	nodeCmd.PersistentFlags().BoolVarP(&showActual, "show-actual", "a", false, showActualDesc)
 	cmdutil.AddLabelSelectorFlagVar(nodeCmd, &nodeGetOpts.LabelSelector)
 	rootCmd.AddCommand(nodeCmd)
 }
@@ -99,19 +108,28 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 
 	switch outputFormat {
 	case outputFormatHuman:
+		headers := []string{
+			"NODE", "RESOURCE", "CAPACITY", "RESERVED", "REQUEST FLOOR", "REQUEST CEIL",
+		}
+		if showActual {
+			headers = append(headers, "ACTUAL")
+		}
+		columnAligns := []int{
+			tablewriter.ALIGN_LEFT,
+			tablewriter.ALIGN_LEFT,
+			tablewriter.ALIGN_RIGHT,
+			tablewriter.ALIGN_RIGHT,
+			tablewriter.ALIGN_RIGHT,
+			tablewriter.ALIGN_RIGHT,
+		}
+		if showActual {
+			columnAligns = append(columnAligns, tablewriter.ALIGN_RIGHT)
+		}
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetAutoMergeCells(true)
 		table.SetBorders(tablewriter.Border{Left: false, Right: false, Bottom: true, Top: true})
-		table.SetHeader([]string{"NODE", "RESOURCE", "CAPACITY", "RESERVED", "REQ FLOOR", "REQ CEIL", "ACTUAL"})
-		table.SetColumnAlignment([]int{
-			tablewriter.ALIGN_LEFT,
-			tablewriter.ALIGN_LEFT,
-			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-		})
+		table.SetHeader(headers)
+		table.SetColumnAlignment(columnAligns)
 		for _, node := range nodes {
 			cpu := node.Resources.CPU
 			cpuFloorPct := (cpu.RequestedFloor / cpu.Allocatable) * 100
@@ -134,7 +152,9 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 				fmt.Sprintf("%.2f", cpu.Reserved),
 				cpuFloorStr,
 				cpuCeilStr,
-				cpuUsedStr,
+			}
+			if showActual {
+				data = append(data, cpuUsedStr)
 			}
 			fieldColors := fieldColorsByPct(cpuFloorPct, cpuCeilPct, cpuUsedPct)
 			table.Rich(data, fieldColors)
@@ -164,26 +184,33 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 				unit.BytesToSizeString(mem.Reserved),
 				memFloorStr,
 				memCeilStr,
-				memUsedStr,
+			}
+			if showActual {
+				data = append(data, memUsedStr)
 			}
 			fieldColors = fieldColorsByPct(memFloorPct, memCeilPct, memUsedPct)
 			table.Rich(data, fieldColors)
 
 			pod := node.Resources.Pods
-			podUsedPct := (pod.Used / pod.Allocatable) * 100
-			podUsed := fmt.Sprintf("%.0f (%.2f%%)", pod.Used, podUsedPct)
+			podCeil := pod.RequestedCeiling
+			podFloorPct := (pod.RequestedFloor / pod.Allocatable) * 100
+			podFloorStr := fmt.Sprintf("%.0f (%.2f%%)", pod.RequestedFloor, podFloorPct)
+			podCeilPct := (podCeil / pod.Allocatable) * 100
+			podCeilStr := fmt.Sprintf("%.0f (%.2f%%)", podCeil, podCeilPct)
 
 			data = []string{
 				node.Name,
 				"Pods",
 				fmt.Sprintf("%.0f", pod.Allocatable),
 				fmt.Sprintf("%.0f", pod.Reserved),
-				fmt.Sprintf("%.0f", pod.RequestedFloor),
-				fmt.Sprintf("%.0f", pod.RequestedCeiling),
-				podUsed,
+				podFloorStr,
+				podCeilStr,
+			}
+			if showActual {
+				data = append(data, podCeilStr)
 			}
 			maxNodeNameLen = max(maxNodeNameLen, len(node.Name))
-			fieldColors = fieldColorsByPct(podUsedPct, podUsedPct, podUsedPct)
+			fieldColors = fieldColorsByPct(podFloorPct, podCeilPct, podCeilPct)
 			table.Rich(data, fieldColors)
 		}
 		table.Render()
@@ -191,18 +218,27 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 		// Print out the totals table as a separate entity
 		totalsFormatStr := fmt.Sprintf("%%%ds", maxNodeNameLen)
 		totTable := tablewriter.NewWriter(os.Stdout)
-		totTable.SetHeader([]string{"", "RESOURCE", "CAPACITY", "RESERVED", "REQ FLOOR", "REQ CEIL", "ACTUAL"})
-		totTable.SetAutoMergeCells(true)
-		totTable.SetBorders(tablewriter.Border{Left: false, Right: false, Bottom: true, Top: false})
-		totTable.SetColumnAlignment([]int{
+		totHeaders := []string{
+			"", "RESOURCE", "CAPACITY", "RESERVED", "REQUEST FLOOR", "REQUEST CEIL",
+		}
+		if showActual {
+			totHeaders = append(totHeaders, "ACTUAL")
+		}
+		totColumnAligns := []int{
+			tablewriter.ALIGN_LEFT,
 			tablewriter.ALIGN_LEFT,
 			tablewriter.ALIGN_RIGHT,
 			tablewriter.ALIGN_RIGHT,
 			tablewriter.ALIGN_RIGHT,
 			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-			tablewriter.ALIGN_RIGHT,
-		})
+		}
+		if showActual {
+			totColumnAligns = append(columnAligns, tablewriter.ALIGN_RIGHT)
+		}
+		totTable.SetHeader(totHeaders)
+		totTable.SetAutoMergeCells(true)
+		totTable.SetBorders(tablewriter.Border{Left: false, Right: false, Bottom: true, Top: false})
+		totTable.SetColumnAlignment(totColumnAligns)
 
 		cpu := resourceTotals.CPU
 		cpuFloorPct := (cpu.RequestedFloor / cpu.Allocatable) * 100
@@ -225,7 +261,9 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 			fmt.Sprintf("%.2f", cpu.Reserved),
 			cpuFloorStr,
 			cpuCeilStr,
-			cpuUsedStr,
+		}
+		if showActual {
+			data = append(data, cpuUsedStr)
 		}
 		fieldColors := fieldColorsByPct(cpuFloorPct, cpuCeilPct, cpuUsedPct)
 		totTable.Rich(data, fieldColors)
@@ -255,25 +293,32 @@ func showNodeResourceSummary(cmd *cobra.Command, args []string) error {
 			unit.BytesToSizeString(mem.Reserved),
 			memFloorStr,
 			memCeilStr,
-			memUsedStr,
+		}
+		if showActual {
+			data = append(data, memUsedStr)
 		}
 		fieldColors = fieldColorsByPct(memFloorPct, memCeilPct, memUsedPct)
 		totTable.Rich(data, fieldColors)
 
 		pod := resourceTotals.Pods
-		podUsedPct := (pod.Used / pod.Allocatable) * 100
-		podUsed := fmt.Sprintf("%.0f (%.2f%%)", pod.Used, podUsedPct)
+		podCeil := pod.RequestedCeiling
+		podFloorPct := (pod.RequestedFloor / pod.Allocatable) * 100
+		podFloorStr := fmt.Sprintf("%.0f (%.2f%%)", pod.RequestedFloor, podFloorPct)
+		podCeilPct := (podCeil / pod.Allocatable) * 100
+		podCeilStr := fmt.Sprintf("%.0f (%.2f%%)", podCeil, podCeilPct)
 
 		data = []string{
 			fmt.Sprintf(totalsFormatStr, "Totals"),
 			"Pods",
 			fmt.Sprintf("%.0f", pod.Allocatable),
 			fmt.Sprintf("%.0f", pod.Reserved),
-			fmt.Sprintf("%.0f", pod.RequestedFloor),
-			fmt.Sprintf("%.0f", pod.RequestedCeiling),
-			podUsed,
+			podFloorStr,
+			podCeilStr,
 		}
-		fieldColors = fieldColorsByPct(podUsedPct, podUsedPct, podUsedPct)
+		if showActual {
+			data = append(data, podCeilStr)
+		}
+		fieldColors = fieldColorsByPct(podFloorPct, podCeilPct, podCeilPct)
 		totTable.Rich(data, fieldColors)
 
 		totTable.Render()

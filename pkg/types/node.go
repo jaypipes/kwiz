@@ -10,6 +10,8 @@ type Node struct {
 	Cluster string
 	// Name is the name of the Kubernetes node
 	Name string
+	// Address contains the internal IP address of the Kubernetes node
+	Address string
 	// Resources contains the capacity, reserved amount and used amount of
 	// various system resources on the Node. If the Node is representing a
 	// machine with multiple NUMA cells, Resources contains ALL resources,
